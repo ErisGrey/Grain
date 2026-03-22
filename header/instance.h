@@ -1,170 +1,87 @@
-﻿#pragma once
-#include <sstream>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string>
+﻿#ifndef INSTANCE_H
+#define INSTANCE_H
+
 #include <iostream>
 #include <vector>
-#include <fstream>
+#include <string>
+#include <map>
 
+// Cấu trúc chứa các chỉ số chất lượng cho mỗi dòng (F1, F2, hoặc F3)
+struct FlourSpecs {
+    double Rate;    // F1, F2, F3
+    double Dam;     // Index 1
+    double WG;      // Index 2
+    double Tro;     // Index 3
+    double Do_roi;  // Index 4
+    double Muoi;    // Index 5
+    double Duong;   // Index 6
+    double Nuoc;    // Index 7
 
-struct Point {
-    float x;
-    float y;
-    int release_date;
+    // Nạp chồng (overload) toán tử []
+    // Chữ 'const' ở cuối đảm bảo hàm này không vô tình làm thay đổi dữ liệu
+    double operator[](int idx) const {
+        switch(idx) {
+            case 1: return Dam;
+            case 2: return WG;
+            case 3: return Tro;
+            case 4: return Do_roi;
+            case 5: return Muoi;
+            case 6: return Duong;
+            case 7: return Nuoc;
+            default: 
+                std::cerr << "Canh bao: Truy cap index " << idx << " khong hop le trong FlourSpecs!\n";
+                return 0.0;
+        }
+    }
 };
 
+struct Grain
+{
+    std::string name;
+    double cost;
+    std::vector<FlourSpecs> specs;
+};
+
+struct Flour
+{
+    std::string name;
+    double capacity; // Giá trị 50, 25, 10 ở dòng cuối
+};
+
+// Cấu trúc lưu giới hạn Min/Max cho một loại bột
+struct Limit
+{
+    double min;
+    double max;
+};
 class Instance
 {
 protected:
-    Instance(const std::string input, const std::string param, const std::string mode)
-    {
-        std::vector<std::string> path;
-        split(input, path, '/');
-        instanceName = path[path.size() - 1];
-        std::size_t dotPosition = instanceName.rfind('.');
-        if (dotPosition != std::string::npos) {
-            // Erase the part after the dot
-            instanceName = instanceName.substr(0, dotPosition);
-        }
-        std::cout << instanceName << std::endl;
-        read_input(input, mode);
-        read_param_input(param);
-        initialize();
-        
-    }
-    static Instance* singleton_;
-    std::vector < Point > Points;
+    Instance(const std::string filename);
+    static Instance *singleton_;
 
 public:
-    std::string instanceName;
-    int num_nodes;
-    int v_truck;
-    int v_drone;
-    int delta;
-    int drone_capacity;
-    std::vector<float> x;
-    std::vector<float> y;
-    std::vector<int> release_time;
-    std::vector< std::vector<float> >time_drone;
-    std::vector< std::vector<float> >time_truck;
-    std::vector< std::vector<float> > dist_truck;
-    std::vector< std::vector<float> > dist_drone;
-    std::vector<int> truckonly;
-    std::vector<int> freemode;
-    Instance(Instance& other) = delete;
-    void operator=(const Instance&) = delete;
-    static Instance* getInstance(const std::string input = "", const std::string param = "", const std::string mode = "");
-    template <class Container>
-    void split(const std::string& str, Container& cont, char delim);
-    int getNumNode() { return num_nodes; }
-    void read_input(const std::string input, const std::string mode);
-    void read_param_input(const std::string param)
-    {
-        std::ifstream myFile(param);
+    int nb_grain;
+    int nb_flour;
+    std::vector<Grain> grains;
+    std::vector<Flour> flours;
 
-        if (!myFile.is_open())
-            std::cerr << "File input is missing !!";
+    // Lưu giới hạn: limits[Tên_Bột][Tên_Chỉ_Số] = {min, max}
+    // Ví dụ: limits["BP3_1"]["Dam"].min = 13.0
+    std::map<std::string, std::map<std::string, Limit>> limits;
+    std::map<std::string, int> spec_to_idx;
+    // Danh sách tên để duyệt (theo đúng thứ tự)
+    std::vector<std::string> spec_names = {
+        "Dam", "WG", "Tro", "Do_roi", "Muoi", "Duong", "Nuoc"
+    };
 
-        std::string line;
-        std::vector<std::string> numbers;
+    void init_spec_map(); // Hàm khởi tạo map
+    void read_input(const std::string &filename);
+    void print_summary();
 
-
-        std::getline(myFile, line);
-        split(line, numbers, ',');
-        v_truck = stoi(numbers[1]);
-        
-        std::getline(myFile, line);
-        split(line, numbers, ',');
-        v_drone = stoi(numbers[1]);
-
-        std::getline(myFile, line);
-        split(line, numbers, ',');
-        delta = stoi(numbers[1]);
-
-        std::getline(myFile, line);
-        split(line, numbers, ',');
-        drone_capacity = stoi(numbers[1]);
-
-        //std::cout << "drone_capacity = " << drone_capacity << '\n';
-    }
-    void initialize()
-    {
-        time_drone.resize(num_nodes);
-        time_truck.resize(num_nodes);
-        for (int i = 0; i < num_nodes; i++)
-        {
-            time_drone[i].resize(num_nodes);
-            time_truck[i].resize(num_nodes);
-        }
-
-        dist_drone.resize(num_nodes);
-        dist_truck.resize(num_nodes);
-        for (int i = 0; i < num_nodes; i++)
-        {
-            dist_drone[i].resize(num_nodes);
-            dist_truck[i].resize(num_nodes);
-        }
-
-        for (int i = 0; i < num_nodes; i++) {
-            for (int j = 0; j < num_nodes; j++) {
-                float euc_d = pow(pow(x[i] - x[j], 2) + pow(y[i] - y[j], 2), 0.5);
-                float man_d = abs(x[i] - x[j]) + abs(y[i] - y[j]);
-
-                dist_drone[i][j] = euc_d;
-                dist_truck[i][j] = man_d;
-
-
-                time_drone[i][j] = ((euc_d / v_drone) * 60); //unit minute
-                time_truck[i][j] = ((man_d / v_truck) * 60); //unit minute
-            }
-        }
-
-        for (int i = 0; i < num_nodes; i++) {
-            
-            std::cout << "time_drone[" << 0 << "][" << i << "] = " << time_drone[0][i] << '\n';
-
-            //            assert(time_drone[i][j] * 2 <= maxTdrone);
-            //            assert(time_truck[i][j] * 2 <= maxTtruck);
-            
-        }
-
-        truckonly = {};
-        freemode = {};
-        for (int i = 1; i < num_nodes - 1; ++i) {
-            if (time_drone[0][i] >= 45)
-                truckonly.push_back(i);
-            else
-                freemode.push_back(i);
-
-        }
-
-        for (auto i : truckonly)
-        {
-            std::cout << i << " ";
-        }
-        std::cout << '\n';
-
-    }
-
-    double tdrone_all(int i)
-    {
-        return 2 * time_drone[0][i];
-    }
-
-    /*int getNbJob() { return nb_job; }
-    int getNbMachine() { return nb_machine; }
-    int getNbConflict() { return nb_conflict; }
-    int getHorizon() { return horizon; }
-    int getSumPt() {
-        int sum = 0;
-        for (int i = 0; i < nb_job; i++)
-            sum += jobs[i].processing_time;
-        return sum;
-    }
-    std::vector < Job > getJobsList() { return jobs; }
-    Job getJob(int i) { return jobs[i]; }
-    std::vector< std::pair< int, int > > getConflictList() {
-        return conflicts;
-    }*/
+    Instance(Instance &other) = delete;
+    void operator=(const Instance &) = delete;
+    static Instance *getInstance(const std::string input = "");
 };
+
+#endif

@@ -1,11 +1,11 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.20)
 set(CMAKE_CXX_FLAGS "-Wall -Wextra -Werror")
 IF( NOT CMAKE_BUILD_TYPE )
    SET( CMAKE_BUILD_TYPE Release ... FORCE )
 ENDIF()
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
-set(MY_PROJECT_NAME resupply)
+set(MY_PROJECT_NAME grain)
 project(${MY_PROJECT_NAME})
 
 ######## Cplex Dependency
@@ -30,43 +30,17 @@ if(CPLEX_CP_FOUND)
     link_directories(${CPLEX_CP_LIBRARY})
 endif()
 
-
-######## Complier message
-message(STATUS "System: ${CMAKE_SYSTEM}")
-message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
-message(STATUS "Compiler version: ${CMAKE_CXX_COMPILER_VERSION}")
+set(CMAKE_CXX_STANDARD 17)
 
 ######## Set output directories.
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/build//bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/build/bin)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/build/lib)
 
-######## Set C++ 17 standard
-include(CheckCXXCompilerFlag)
-check_cxx_compiler_flag("-std=c++17" COMPILER_SUPPORTS_CXX17)
-if (COMPILER_SUPPORTS_CXX17)
-    if (CMAKE_COMPILER_IS_GNUCXX)
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu++17")
-    else ()
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17")
-    endif ()
-else ()
-    message(STATUS "Fatal Error: Your compiler doesn't support c++17, please install it!")
-endif ()
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -Wextra -Werror -march=native -flto=auto -ffat-lto-objects -funroll-loops -ffast-math -funsafe-math-optimizations -mtune=native -mavx -mavx2 -mfma")
 
-set( CommonLibs
-        m
-        pthread
-        dl
-)
-######## find all the source files.
-file(GLOB HEADER_FILES header/*.h)
-file(GLOB SOURCE_FILES source/*.cpp)
+file(GLOB_RECURSE source source/*.cpp)
+file(GLOB_RECURSE header header/*.h)
+add_executable(${PROJECT_NAME} ${source} ${header})
 
-######## Set executable file name, and add the source files for it.
-add_executable(${MY_PROJECT_NAME} ${HEADER_FILES} ${SOURCE_FILES})
-######## Add Dependency Library
-target_link_libraries(${MY_PROJECT_NAME} cplex-library cplex-concert ilocplex cplex-cp ${CommonLibs})
-######## Add Optimization Flags
-target_compile_options(${MY_PROJECT_NAME} PRIVATE -O3)
+target_link_libraries(${PROJECT_NAME} cplex-library cplex-concert ilocplex cplex-cp ${CommonLibs})
+

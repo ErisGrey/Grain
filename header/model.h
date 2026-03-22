@@ -1,5 +1,5 @@
 #pragma once
-#include "Instance.h"
+#include "../header/instance.h"
 #include <chrono>
 #include <ilcplex/ilocplex.h>
 
@@ -11,15 +11,17 @@ public:
         time = 0;
         status = "No Solution";
     }
-    int obj;
-    int bound;
+
+    double obj;
+    double bound;
     double time; //in second;
     std::string status; //no solution, feasible or optimal
     std::string name;
-    int order_resupply = 0;
-    int trip_resupply = 0;
-    int order_served = 0;
-    std::vector< int > st;
+    
+    double time_phase1 = 0;
+    float gap = 100;
+    int lower_bound = 0;
+
 };
 
 class Model {
