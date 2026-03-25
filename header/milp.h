@@ -125,7 +125,7 @@ public:
             }
         }
 
-        // model.add(x[0] >= 10); // Ràng buộc thử nghiệm (bỏ comment nếu muốn)
+        model.add(x[0] >= 10); // Ràng buộc thử nghiệm (bỏ comment nếu muốn)
 
         return model;
     }
@@ -135,89 +135,58 @@ public:
         IloModel model = createModel();
         IloCplex cplex(model);
 
-        // Các thiết lập cấu hình CPLEX (bỏ comment nếu cần)
-        // cplex.setParam(IloCplex::Param::TimeLimit, 3600);
-        // cplex.setParam(IloCplex::Param::Threads, 4);
-
         Solution sol;
         Instance *instance = Instance::getInstance();
 
         try
         {
-            std::ofstream solution_file;
-            solution_file = std::ofstream("./output.txt");
-            if (!solution_file.is_open())
-            {
-                std::cerr << "Cannot open output file" << std::endl;
-                return sol;
-            }
+            std::ofstream f("./output.csv");
+            f << "type,flour_name,flour_capacity,grain_name,grain_idx,part,value\n";
+
             if (cplex.solve())
             {
-
-                solution_file << "====================================================\n";
-                solution_file << "GIAI QUYET THANH CONG!\n";
-                solution_file << "Trang thai: " << cplex.getStatus() << std::endl;
-                solution_file << "Tong chi phi (Objective Value): " << cplex.getObjValue() << std::endl;
-                solution_file << "====================================================\n\n";
-
-                // 1. In ra lượng lúa cần mua (biến x)
-                solution_file << "--- 1. KHOI LUONG LUA CAN MUA ---\n";
+                // x^g
                 for (int g = 0; g < nb_grain; g++)
                 {
-                    double val_x = cplex.getValue(x[g]);
-                    // Dùng sai số 1e-5 để bỏ qua các giá trị 0 (hoặc xấp xỉ 0 do sai số dấu phẩy động)
-                    if (val_x > 1e-5)
-                    {
-                        solution_file << "- Lua " << instance->grains[g].name
-                                      << " (x^" << g << "): " << val_x << " tan\n";
-                    }
+                    double val = cplex.getValue(x[g]);
+                    if (val > 1e-5)
+                        f << "x,,,"
+                          << instance->grains[g].name << "," << g << ",,"
+                          << val << "\n";
                 }
 
-                // 2. In ra lượng lúa tách ra ở từng luồng F1, F2, F3 (biến z)
-                solution_file << "\n--- 2. KHOI LUONG TUNG PHAN TACH RA (z) ---\n";
+                // z^gb
                 for (int g = 0; g < nb_grain; g++)
-                {
                     for (int b = 0; b < 3; b++)
                     {
-                        double val_z = cplex.getValue(z[g][b]);
-                        if (val_z > 1e-5)
-                        {
-                            solution_file << "- Lua " << instance->grains[g].name
-                                          << " | Phan " << b + 1
-                                          << " (z^" << g << "." << b << "): " << val_z << " tan\n";
-                        }
+                        double val = cplex.getValue(z[g][b]);
+                        if (val > 1e-5)
+                            f << "z,,,"
+                              << instance->grains[g].name << "," << g << ","
+                              << (b + 1) << "," << val << "\n";
                     }
-                }
 
-                // 3. In ra tỷ lệ phối trộn vào từng loại bột (biến y)
-                solution_file << "\n--- 3. CONG THUC PHOI TRON (y) ---\n";
-                for (int f = 0; f < nb_flour; f++)
-                {
-                    solution_file << ">> Bot thanh pham: " << instance->flours[f].name
-                                  << " (San luong: " << instance->flours[f].capacity << ")\n";
+                // y^gbf
+                for (int fi = 0; fi < nb_flour; fi++)
                     for (int g = 0; g < nb_grain; g++)
-                    {
                         for (int b = 0; b < 3; b++)
                         {
-                            double val_y = cplex.getValue(y[g][b][f]);
-                            if (val_y > 1e-5)
-                            {
-                                solution_file << "   + Dung " << (val_y * 100.0) << "% tu "
-                                              << instance->grains[g].name << " (Phan " << b + 1 << ")\n";
-                            }
+                            double val = cplex.getValue(y[g][b][fi]);
+                            if (val > 1e-5)
+                                f << "y,"
+                                  << instance->flours[fi].name << ","
+                                  << instance->flours[fi].capacity << ","
+                                  << instance->grains[g].name << "," << g << ","
+                                  << (b + 1) << ","
+                                  << (val * 100.0) << "\n";
                         }
-                    }
-                }
 
-                solution_file << "====================================================\n";
-
-                // TODO: Nếu struct `Solution` của bạn có các trường lưu dữ liệu,
-                // bạn có thể gán giá trị vào `sol` ở đây.
-                // Ví dụ: sol.objective = cplex.getObjValue();
+                std::cerr << "Objective: " << cplex.getObjValue() << "\n";
             }
             else
             {
-                solution_file << "Infeasible or Unbounded solution!\n";
+                f << "infeasible,,,,,,\n";
+                std::cerr << "Infeasible or Unbounded solution!\n";
             }
         }
         catch (IloException &e)
@@ -230,7 +199,6 @@ public:
         }
 
         cplex.end();
-
         return sol;
     }
 };
