@@ -36,3 +36,9 @@ Duong,Min,0,0,0,,,
 Duong,Max,inf,inf,inf,,,
 Nuoc,Min,0,0,0,,,
 Nuoc,Max,inf,inf,inf,,,
+Compatibility,,,
+,BP3_1,BP3_2,HY_1
+APH,1,1,1
+DNS,1,1,1
+CWRS,1,1,1
+AH,1,1,1
