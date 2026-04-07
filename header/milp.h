@@ -86,7 +86,11 @@ public:
 
         for (int g = 0; g < nb_grain; g++)
             for (int b = 0; b < 3; b++)
-                model.add(x[g] >= z[g][b] / instance->grains[g].specs[b].Rate);
+            {
+                double rate = instance->grains[g].specs[b].Rate;
+                if (rate > 1e-9)  // ← chỉ thêm ràng buộc khi Rate hợp lệ
+                    model.add(x[g] >= z[g][b] / rate);
+            }
 
         for (int f = 0; f < nb_flour; f++)
         {
@@ -147,7 +151,7 @@ public:
             }
         }
 
-        model.add(x[0] >= 10); // Ràng buộc thử nghiệm (bỏ comment nếu muốn)
+        // model.add(x[0] >= 10); // Ràng buộc thử nghiệm (bỏ comment nếu muốn)
 
         return model;
     }
