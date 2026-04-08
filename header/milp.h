@@ -54,7 +54,7 @@ public:
                 for (int f = 0; f < nb_flour; f++)
                 {
                     name << "y^" << g << "." << b << "." << f;
-                    y[g][b][f] = IloNumVar(env, 0, 1, ILOFLOAT, name.str().c_str());
+                    y[g][b][f] = IloNumVar(env, 0, 100, ILOINT, name.str().c_str());
                     name.str("");
                 }
             }
@@ -88,7 +88,7 @@ public:
             for (int b = 0; b < 3; b++)
             {
                 double rate = instance->grains[g].specs[b].Rate;
-                if (rate > 1e-9)  // ← chỉ thêm ràng buộc khi Rate hợp lệ
+                if (rate > 1e-9) // ← chỉ thêm ràng buộc khi Rate hợp lệ
                     model.add(x[g] >= z[g][b] / rate);
             }
 
@@ -97,7 +97,7 @@ public:
             IloExpr sum_rate(env);
             for (int g = 0; g < nb_grain; g++)
                 for (int b = 0; b < 3; b++)
-                    sum_rate += y[g][b][f];
+                    sum_rate += y[g][b][f] * 1.0 / 100;
 
             model.add(sum_rate == 1);
         }
@@ -108,7 +108,7 @@ public:
             {
                 IloExpr total_weight(env);
                 for (int f = 0; f < nb_flour; f++)
-                    total_weight += y[g][b][f] * instance->flours[f].capacity;
+                    total_weight += y[g][b][f] * instance->flours[f].capacity * 1.0 / 100;
                 model.add(z[g][b] == total_weight);
             }
         }
@@ -121,7 +121,7 @@ public:
                 int idx = instance->spec_to_idx[name];
                 for (int g = 0; g < nb_grain; g++)
                     for (int b = 0; b < 3; b++)
-                        total_spec += y[g][b][f] * instance->grains[g].specs[b][idx];
+                        total_spec += y[g][b][f] * instance->grains[g].specs[b][idx] * 1.0 / 100;
 
                 model.add(total_spec >= instance->limits[instance->flours[f].name][name].min);
                 if (instance->limits[instance->flours[f].name][name].max < 999999)
@@ -151,7 +151,7 @@ public:
             }
         }
 
-        // model.add(x[0] >= 10); // Ràng buộc thử nghiệm (bỏ comment nếu muốn)
+        // model.add(x[0] == 5); // Ràng buộc thử nghiệm (bỏ comment nếu muốn)
 
         return model;
     }
@@ -218,7 +218,7 @@ public:
                             double val = cplex.getValue(y[g][b][fi]);
                             if (val > 1e-5)
                                 f << "y," << instance->flours[fi].name << "," << instance->flours[fi].capacity << ","
-                                  << instance->grains[g].name << "," << g << "," << (b + 1) << "," << (val * 100.0) << "\n";
+                                  << instance->grains[g].name << "," << g << "," << (b + 1) << "," << (val) << "\n";
                         }
                     }
                 }
@@ -259,7 +259,7 @@ public:
                             double val = cplex.getValue(y[g][b][fi]);
                             if (val > 1e-5)
                             {
-                                f << "#    - Dung " << (val * 100.0) << "% tu lua [" << instance->grains[g].name << "] (Phan " << (b + 1) << ").\n";
+                                f << "#    - Dung " << (val) << "% tu lua [" << instance->grains[g].name << "] (Phan " << (b + 1) << ").\n";
                                 has_recipe = true;
                             }
                         }
