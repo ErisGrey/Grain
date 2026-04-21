@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "../header/model.h"
 #include "../header/params.h"
 #include <algorithm>
@@ -80,8 +80,23 @@ public:
 
         IloModel model(env);
         IloExpr objExpr(env);
+
+        // Phần 1: Minimize chi phí mua lúa
         for (int g = 0; g < nb_grain; g++)
             objExpr += x[g] * instance->grains[g].cost;
+
+        // Phần 2: Minimize lượng grain thừa (leftover) sau khi làm bột
+        // leftover[g][b] = x[g] * Rate[g][b] - z[g][b] >= 0
+        // alpha: trọng số cho leftover (điều chỉnh tùy ý)
+        double alpha = 999999999.0;
+        for (int g = 0; g < nb_grain; g++)
+            for (int b = 0; b < 3; b++)
+            {
+                double rate = instance->grains[g].specs[b].Rate;
+                if (rate > 1e-9)
+                    objExpr += alpha * (x[g] * rate - z[g][b]);
+            }
+
         model.add(IloMinimize(env, objExpr));
 
         for (int g = 0; g < nb_grain; g++)
@@ -160,6 +175,7 @@ public:
     {
         IloModel model = createModel();
         IloCplex cplex(model);
+        cplex.setOut(env.getNullStream());
 
         Solution sol;
         Instance *instance = Instance::getInstance();
@@ -222,6 +238,20 @@ public:
                         }
                     }
                 }
+                // Ghi lượng grain tồn (leftover) = tổng(x[g]*Rate[b] - z[g][b]) cho mỗi grain
+                for (int g = 0; g < nb_grain; g++)
+                {
+                    double xval = cplex.getValue(x[g]);
+                    if (xval < 1e-5) continue;
+                    double total_leftover = 0.0;
+                    for (int b = 0; b < 3; b++)
+                    {
+                        double zval = cplex.getValue(z[g][b]);
+                        double rate = instance->grains[g].specs[b].Rate;
+                        total_leftover += xval * rate - zval;
+                    }
+                    f << "leftover,,," << instance->grains[g].name << "," << g << ",," << total_leftover << "\n";
+                }
 
                 // ================== 3. PHẦN BÁO CÁO BẰNG LỜI (DƯỚI ĐÁY FILE) ==================
                 f << "\n# ========================================================================\n";
@@ -266,6 +296,25 @@ public:
                     }
                     if (!has_recipe)
                         f << "#    (Khong can san xuat loai bot nay)\n";
+                }
+
+                f << "#\n# [4. LUONG GRAIN TON (LEFTOVER) CUA TUNG LOAI]\n";
+                for (int g = 0; g < nb_grain; g++)
+                {
+                    double xval = cplex.getValue(x[g]);
+                    if (xval < 1e-5) continue;
+                    double total_produced = 0.0, total_used = 0.0;
+                    for (int b = 0; b < 3; b++)
+                    {
+                        total_produced += xval * instance->grains[g].specs[b].Rate;
+                        total_used += cplex.getValue(z[g][b]);
+                    }
+                    double leftover = total_produced - total_used;
+                    if (leftover > 1e-5)
+                        f << "# - Lua [" << instance->grains[g].name << "]: Ton " << leftover
+                          << " tan (san xuat " << total_produced << ", su dung " << total_used << ").\n";
+                    else
+                        f << "# - Lua [" << instance->grains[g].name << "]: Khong ton (su dung het).\n";
                 }
                 f << "# ========================================================================\n";
 
