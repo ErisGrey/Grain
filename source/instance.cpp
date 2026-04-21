@@ -4,6 +4,7 @@
 #include <iomanip>
 #include <iostream>
 #include <algorithm>
+#include <set>
 
 // Hàm phụ trợ làm sạch chuỗi (xóa \r và khoảng trắng dư thừa)
 void clean_string(std::string &s)
@@ -53,6 +54,57 @@ void Instance::init_spec_map()
 
 void Instance::read_input(const std::string &filename)
 {
+    // =========================================================================
+    // BƯỚC 0: Quét trước file CSV để thu thập tên các thành phần từ bảng Min/Max
+    // Mục đích: Biết trước danh sách spec_names TRƯỚC khi đọc dữ liệu grain
+    // =========================================================================
+    {
+        std::ifstream pre_scan(filename);
+        if (!pre_scan.is_open())
+        {
+            std::cerr << "File input is missing or wrong !!\n";
+            return;
+        }
+        std::string line, cell;
+        // Tập hợp để theo dõi thứ tự xuất hiện (dùng vector + set)
+        std::set<std::string> seen_specs;
+        while (std::getline(pre_scan, line))
+        {
+            clean_string(line);
+            if (line.find("Compatibility") != std::string::npos)
+                break; // Kết thúc vùng Min/Max
+
+            // Phát hiện vùng Min/Max: dòng có cột thứ 2 là "Min" hoặc "Max"
+            std::stringstream ss(line);
+            std::string col1, col2;
+            std::getline(ss, col1, ',');
+            clean_string(col1);
+            std::getline(ss, col2, ',');
+            clean_string(col2);
+
+            if (col2 == "Min" || col2 == "Max")
+            {
+                if (!col1.empty() && seen_specs.find(col1) == seen_specs.end())
+                {
+                    spec_names.push_back(col1);
+                    seen_specs.insert(col1);
+                }
+            }
+        }
+        pre_scan.close();
+    }
+
+    nb_spec = (int)spec_names.size();
+    init_spec_map();
+
+    std::cerr << "Da phat hien " << nb_spec << " thanh phan tu CSV: ";
+    for (const auto &n : spec_names)
+        std::cerr << n << " ";
+    std::cerr << "\n";
+
+    // =========================================================================
+    // BƯỚC 1: Đọc chính thức toàn bộ dữ liệu
+    // =========================================================================
     std::ifstream file(filename);
     if (!file.is_open())
         std::cerr << "File input is missing or wrong !!\n";
@@ -104,10 +156,17 @@ void Instance::read_input(const std::string &filename)
                     }
                 }
             }
-            // Bọc an toàn nếu dữ liệu lúa thiếu cột
-            while (v.size() < 8)
+
+            // Đọc tổng quát: cột đầu = Rate, các cột sau = spec values
+            // Đảm bảo có đủ giá trị (pad thêm 0 nếu thiếu)
+            int expected_cols = 1 + nb_spec; // Rate + nb_spec giá trị
+            while ((int)v.size() < expected_cols)
                 v.push_back(0.0);
-            g.specs.push_back({v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7]});
+
+            FlourSpecs fs;
+            fs.Rate = v[0];
+            fs.values.assign(v.begin() + 1, v.begin() + 1 + nb_spec);
+            g.specs.push_back(fs);
         }
         grains.push_back(g);
     }
@@ -162,7 +221,7 @@ void Instance::read_input(const std::string &filename)
         }
     }
 
-    // 4. Đọc bảng Min/Max
+    // 4. Đọc bảng Min/Max (tổng quát — đọc tất cả spec từ CSV)
     while (std::getline(file, line))
     {
         if (line.find("Compatibility") != std::string::npos)
@@ -277,6 +336,7 @@ void Instance::print_summary()
         init_spec_map();
 
     std::cout << "=== FLOURS & LIMITS (WITH INDEX) ===\n";
+    std::cout << "So thanh phan: " << nb_spec << "\n";
     for (auto &f : flours)
     {
         std::cout << "\nFlour: " << f.name << "\n";
@@ -287,8 +347,24 @@ void Instance::print_summary()
             double mn = limits[f.name][name].min;
             double mx = limits[f.name][name].max;
 
-            std::cout << "  " << idx << ". " << std::left << std::setw(8) << name
+            std::cout << "  " << idx << ". " << std::left << std::setw(12) << name
                       << ": [" << mn << " - " << (mx >= 999999 ? "inf" : std::to_string(mx)) << "]\n";
+        }
+    }
+
+    // In thông tin grain specs
+    std::cout << "\n=== GRAIN SPECS ===\n";
+    for (int g = 0; g < nb_grain; ++g)
+    {
+        std::cout << "Grain: " << grains[g].name << " (cost=" << grains[g].cost << ")\n";
+        for (int b = 0; b < 3; ++b)
+        {
+            std::cout << "  Part " << (b + 1) << ": Rate=" << grains[g].specs[b].Rate;
+            for (int s = 0; s < nb_spec; ++s)
+            {
+                std::cout << ", " << spec_names[s] << "=" << grains[g].specs[b].values[s];
+            }
+            std::cout << "\n";
         }
     }
 
